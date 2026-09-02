@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.env
+.streamlit/secrets.toml
+*.html
+*.json
+test_*.py
+discover_*.py
+explore_*.py
+extract_*.py
+app_report.js
+app_gestao.js
+export_transacao.bin
+*.bin
