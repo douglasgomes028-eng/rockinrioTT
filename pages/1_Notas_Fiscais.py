@@ -33,6 +33,24 @@ def _format_hm(value: time) -> str:
     return value.strftime("%H:%M")
 
 
+@st.cache_data(ttl=120, show_spinner=False)
+def load_terminal_serials(
+    username: str,
+    password: str,
+    event_id: int,
+    partner_code: str,
+    period_start: str,
+    period_end: str,
+) -> list[str]:
+    client = get_zig_client(username, password, event_id, partner_code)
+    client.config.event_id = event_id
+    if not hasattr(client, "list_invoice_terminals"):
+        clear_zig_client_cache()
+        client = get_zig_client(username, password, event_id, partner_code)
+        client.config.event_id = event_id
+    return client.list_invoice_terminals(period_start, period_end)
+
+
 st.set_page_config(
     page_title="Notas Fiscais · Grupo Impettus",
     page_icon="🧾",
@@ -58,7 +76,7 @@ with st.sidebar:
         """
         **Campos do comprovante para busca**
         - **Data + horário** da venda
-        - **Serial do terminal** (15 dígitos)
+        - **Serial do terminal** (seleção na lista)
         - **Código de controle**
         - **ID da transação Zig**
         - **ID da nota** ou **número da NF**
@@ -123,20 +141,43 @@ with hora_col_b:
 if (start_day, hora_inicio) > (end_day, hora_fim):
     st.warning("O horário inicial está depois do horário final. Ajuste o intervalo.")
 
-terminal = st.text_input(
+period_start = f"{start_day.strftime('%d/%m/%Y')} {_format_hm(hora_inicio)}"
+period_end = f"{end_day.strftime('%d/%m/%Y')} {_format_hm(hora_fim)}"
+st.caption(f"Consultando de {period_start} até {period_end}.")
+
+try:
+    with st.spinner("Carregando seriais de terminais do período..."):
+        terminal_options = load_terminal_serials(
+            config.username,
+            config.password,
+            event_id,
+            config.partner_code,
+            period_start,
+            period_end,
+        )
+except Exception as exc:
+    st.warning(f"Não foi possível montar a lista de terminais: {exc}")
+    terminal_options = []
+
+terminal_labels = ["Todos"] + terminal_options
+selected_terminal = st.selectbox(
     "Serial do terminal",
-    placeholder="Ex.: 869122080155908",
-    help="Campo Terminal ID do comprovante. Acelera bastante a busca quando combinado com data/hora.",
+    options=terminal_labels,
+    index=0,
+    help="Lista dos terminais com nota no período selecionado. Escolha o serial do comprovante.",
 )
+if not terminal_options:
+    st.caption("Nenhum serial encontrado neste período. Ajuste data/hora ou liste as notas sem filtro de terminal.")
+else:
+    st.caption(f"{len(terminal_options)} serial(is) disponível(is) no período.")
+
+terminal = "" if selected_terminal == "Todos" else selected_terminal
+
 query = st.text_input(
     "Busca adicional (opcional)",
     placeholder="Controle, transação Zig, ID ou número da NF",
     help="Use se quiser refinar ainda mais. O terminal tem campo próprio acima.",
 )
-
-period_start = f"{start_day.strftime('%d/%m/%Y')} {_format_hm(hora_inicio)}"
-period_end = f"{end_day.strftime('%d/%m/%Y')} {_format_hm(hora_fim)}"
-st.caption(f"Consultando de {period_start} até {period_end}.")
 
 col_a, col_b = st.columns(2)
 with col_a:

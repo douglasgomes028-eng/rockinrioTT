@@ -409,6 +409,26 @@ class ZigClient:
 
         return invoices, total
 
+    def list_invoice_terminals(
+        self,
+        period_start: str | None = None,
+        period_end: str | None = None,
+        max_pages: int = 40,
+    ) -> list[str]:
+        invoices, _ = self.search_invoices(
+            query="",
+            period_start=period_start,
+            period_end=period_end,
+            terminal="",
+            max_pages=max_pages,
+        )
+        serials = {
+            str(invoice.get("terminal") or "").strip()
+            for invoice in invoices
+            if str(invoice.get("terminal") or "").strip()
+        }
+        return sorted(serials)
+
     @staticmethod
     def _normalize_invoice(item: dict[str, Any]) -> dict[str, Any]:
         return {

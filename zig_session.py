@@ -29,7 +29,7 @@ def get_config() -> ZigConfig:
     )
 
 
-CLIENT_CACHE_VERSION = "notas-v2-terminal-zip"
+CLIENT_CACHE_VERSION = "notas-v3-terminal-select"
 
 
 @st.cache_resource(show_spinner=False)
