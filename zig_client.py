@@ -1,7 +1,9 @@
 """Cliente para integração com o backoffice Zig/NetPDV."""
 from __future__ import annotations
 
+import io
 import re
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -270,13 +272,70 @@ class ZigClient:
         filename = f"NFe_{numero}.xml"
         return file_response.content, filename
 
+    def download_danfes_zip(
+        self,
+        invoices: list[dict[str, Any]],
+        progress_callback: Any | None = None,
+    ) -> tuple[bytes, str, dict[str, int]]:
+        """Baixa as DANFEs das notas e empacota em um único ZIP."""
+        buffer = io.BytesIO()
+        downloaded = 0
+        skipped = 0
+        failed = 0
+        used_names: set[str] = set()
+
+        with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+            total = len(invoices)
+            for index, invoice in enumerate(invoices, start=1):
+                if progress_callback is not None:
+                    progress_callback(index, total)
+
+                danfe_url = (invoice.get("danfe_url") or "").strip()
+                nota_id = invoice.get("nota_id")
+                numero = invoice.get("numero") or nota_id or index
+                transacao = invoice.get("transacao_id") or "sem_transacao"
+
+                if not danfe_url and nota_id:
+                    try:
+                        detail = self.fetch_invoice_detail(int(nota_id))
+                        danfe_url = (detail or {}).get("vchCaminhoDanfe") or ""
+                        if detail and detail.get("Numero"):
+                            numero = detail.get("Numero")
+                    except Exception:
+                        danfe_url = ""
+
+                if not danfe_url:
+                    skipped += 1
+                    continue
+
+                try:
+                    file_response = requests.get(danfe_url, timeout=45)
+                    file_response.raise_for_status()
+                    filename = f"DANFE_{numero}_TX{transacao}.pdf"
+                    if filename in used_names:
+                        filename = f"DANFE_{numero}_TX{transacao}_{nota_id}.pdf"
+                    used_names.add(filename)
+                    archive.writestr(filename, file_response.content)
+                    downloaded += 1
+                except Exception:
+                    failed += 1
+
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        zip_name = f"DANFEs_{stamp}.zip"
+        return buffer.getvalue(), zip_name, {
+            "downloaded": downloaded,
+            "skipped": skipped,
+            "failed": failed,
+            "total": len(invoices),
+        }
+
     def search_invoices(
         self,
         query: str = "",
         period_start: str | None = None,
         period_end: str | None = None,
         terminal: str = "",
-        max_pages: int = 8,
+        max_pages: int = 40,
     ) -> tuple[list[dict[str, Any]], int]:
         if not period_start or not period_end:
             period_start, period_end = self.get_event_period()
@@ -325,7 +384,8 @@ class ZigClient:
             if not batch:
                 break
             invoices.extend(self._normalize_invoice(item) for item in batch)
-            if len(batch) < int(body.get("itemsPerPage") or 150):
+            items_per_page = int(body.get("itemsPerPage") or 150)
+            if len(batch) < items_per_page or len(invoices) >= total:
                 break
 
         if query:

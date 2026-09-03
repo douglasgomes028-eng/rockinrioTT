@@ -161,6 +161,9 @@ if buscar or listar:
         if terminal.strip():
             label_bits.append(f"terminal {terminal.strip()}")
         st.session_state.invoice_period = " · ".join(label_bits)
+        st.session_state.pop("danfe_zip_bytes", None)
+        st.session_state.pop("danfe_zip_name", None)
+        st.session_state.pop("danfe_zip_stats", None)
     except Exception as exc:
         st.error(f"Não foi possível carregar as notas: {exc}")
         st.stop()
@@ -180,6 +183,65 @@ st.success(
     f"{len(rows)} nota(s) exibida(s) de {total} encontrada(s) no retaguarda "
     f"({periodo_label})."
 )
+
+danfe_ready = [invoice for invoice in rows if invoice.get("danfe_url")]
+bulk_cols = st.columns([2, 2, 4])
+with bulk_cols[0]:
+    gerar_zip = st.button(
+        f"📦 Gerar ZIP com {len(danfe_ready)} DANFE(s)",
+        use_container_width=True,
+        disabled=not danfe_ready,
+        help="Baixa todas as DANFEs das notas listadas com o filtro atual e gera um arquivo ZIP.",
+    )
+with bulk_cols[1]:
+    if st.session_state.get("danfe_zip_bytes"):
+        st.download_button(
+            "⬇️ Baixar ZIP",
+            data=st.session_state.danfe_zip_bytes,
+            file_name=st.session_state.get("danfe_zip_name", "DANFEs.zip"),
+            mime="application/zip",
+            use_container_width=True,
+        )
+
+if gerar_zip:
+    if len(danfe_ready) > 400:
+        st.warning(
+            "Há muitas notas neste filtro. O ZIP pode demorar e o Streamlit Cloud "
+            "pode estourar o tempo limite. Prefira estreitar data/hora ou terminal."
+        )
+    try:
+        client = get_zig_client(
+            config.username,
+            config.password,
+            event_id,
+            config.partner_code,
+        )
+        client.config.event_id = event_id
+        progress = st.progress(0.0, text="Preparando download das DANFEs...")
+
+        def _on_progress(current: int, total_count: int) -> None:
+            ratio = current / max(total_count, 1)
+            progress.progress(ratio, text=f"Baixando DANFE {current} de {total_count}...")
+
+        with st.spinner("Montando ZIP com as DANFEs do período filtrado..."):
+            zip_bytes, zip_name, stats = client.download_danfes_zip(
+                danfe_ready,
+                progress_callback=_on_progress,
+            )
+        progress.empty()
+        st.session_state.danfe_zip_bytes = zip_bytes
+        st.session_state.danfe_zip_name = zip_name
+        st.session_state.danfe_zip_stats = stats
+        st.rerun()
+    except Exception as exc:
+        st.error(f"Não foi possível gerar o ZIP das DANFEs: {exc}")
+
+zip_stats = st.session_state.get("danfe_zip_stats")
+if zip_stats and st.session_state.get("danfe_zip_bytes"):
+    st.info(
+        f"ZIP pronto: {zip_stats['downloaded']} DANFE(s) incluída(s). "
+        f"Ignoradas: {zip_stats['skipped']} · Falhas: {zip_stats['failed']}."
+    )
 
 for invoice in rows:
     nota_id = invoice.get("nota_id")
