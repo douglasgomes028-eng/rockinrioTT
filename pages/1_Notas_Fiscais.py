@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time
+import re
 
 import pandas as pd
 import streamlit as st
@@ -163,23 +164,55 @@ except Exception as exc:
     st.warning(f"Não foi possível montar a lista de terminais: {exc}")
     terminal_options = []
 
+typed_terminal = st.text_input(
+    "Serial do terminal",
+    placeholder="Digite para filtrar ou cole o serial do comprovante",
+    help="Conforme você digita, a lista abaixo mostra os terminais correspondentes.",
+    key="terminal_typed",
+)
+typed_clean = typed_terminal.strip()
+typed_digits = re.sub(r"\D", "", typed_clean)
+typed_lower = typed_clean.lower()
+
 if terminal_options:
-    selected_terminal = st.selectbox(
-        "Serial do terminal",
-        options=terminal_options,
-        format_func=_terminal_label,
-        index=None,
-        placeholder="Selecione o terminal",
-        help="Todos os terminais com nota fiscal neste evento. Escolha o serial do comprovante.",
-    )
-    st.caption(f"{len(terminal_options)} terminais disponíveis no evento.")
-    terminal = selected_terminal or ""
+    if typed_clean:
+        filtered_terminals = [
+            serial
+            for serial in terminal_options
+            if typed_lower in serial.lower()
+            or typed_lower in _terminal_label(serial).lower()
+            or (typed_digits and typed_digits in re.sub(r"\D", "", serial))
+        ]
+    else:
+        filtered_terminals = terminal_options
+
+    if filtered_terminals:
+        selected_terminal = st.selectbox(
+            "Terminais encontrados",
+            options=filtered_terminals,
+            format_func=_terminal_label,
+            index=0 if len(filtered_terminals) == 1 else None,
+            placeholder="Selecione o terminal na lista",
+            help="Lista filtrada conforme o texto digitado acima.",
+            key="terminal_select",
+        )
+        st.caption(
+            f"{len(filtered_terminals)} de {len(terminal_options)} terminais "
+            f"{'filtrados' if typed_clean else 'disponíveis'}."
+        )
+        terminal = selected_terminal or typed_digits or typed_clean
+    else:
+        st.caption(
+            "Nenhum terminal da lista corresponde ao texto. "
+            "A busca usará exatamente o que foi digitado."
+        )
+        terminal = typed_digits or typed_clean
 else:
     st.warning(
-        "Nenhum terminal encontrado no evento. Você ainda pode listar notas só com data/hora "
-        "ou informar a busca adicional."
+        "Nenhum terminal encontrado no evento. Você ainda pode digitar o serial "
+        "manualmente ou listar notas só com data/hora."
     )
-    terminal = ""
+    terminal = typed_digits or typed_clean
 
 query = st.text_input(
     "Busca adicional (opcional)",
