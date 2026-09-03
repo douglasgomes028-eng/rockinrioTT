@@ -46,6 +46,8 @@ if not config.username or not config.password:
     st.stop()
 
 with st.sidebar:
+    if st.button("📊 Voltar ao dashboard", use_container_width=True):
+        st.switch_page("app.py")
     st.subheader("Filtros")
     event_id = int(st.number_input("ID do Evento", value=config.event_id, step=1))
     st.markdown(

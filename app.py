@@ -554,7 +554,9 @@ ZIG_PARTNER_CODE = "09C7DF1421"
             key="refresh_seconds",
         )
         refresh = st.button("🔄 Atualizar agora", use_container_width=True)
-        st.caption("Para DANFE / notas fiscais, abra a página **Notas Fiscais** no menu.")
+        st.divider()
+        if st.button("🧾 Notas fiscais (DANFE)", use_container_width=True):
+            st.switch_page("pages/1_Notas_Fiscais.py")
 
     if not config.username or not config.password:
         st.stop()
