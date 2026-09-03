@@ -291,7 +291,12 @@ def render_brand_ranking(transactions: list[dict]) -> None:
             plot_bgcolor="rgba(0,0,0,0)",
             font=dict(color="#e2e8f0"),
         )
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            config={"displayModeBar": False},
+            key="brand_ranking_chart",
+        )
 
     with cards_tab:
         max_valor = float(ranking["valor"].max() or 1)
@@ -463,7 +468,12 @@ def render_charts(transactions: list[dict]) -> None:
             hole=0.45,
         )
         fig.update_layout(height=380)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            config={"displayModeBar": False},
+            key="operacao_pie_chart",
+        )
 
 
 def render_dashboard_content(data: dict, sync_status: str = "") -> None:
@@ -530,7 +540,11 @@ def render_dashboard_content(data: dict, sync_status: str = "") -> None:
                 ]
                 if col in df.columns
             ]
-            st.dataframe(df[display_cols].head(100), use_container_width=True)
+            st.dataframe(
+                df[display_cols].head(100),
+                use_container_width=True,
+                key="recent_transactions_table",
+            )
         else:
             st.info("Nenhuma transação encontrada no período.")
 
@@ -604,38 +618,38 @@ ZIG_PARTNER_CODE = "09C7DF1421"
 
     @st.fragment(run_every=run_every)
     def live_dashboard() -> None:
-        slot = st.empty()
+        skip_fetch = st.session_state.pop("skip_next_fragment_fetch", False)
 
-        def paint(sync_status: str = "") -> None:
-            with slot.container():
-                render_dashboard_content(
-                    st.session_state.dashboard_data,
-                    sync_status=sync_status,
-                )
-
-        # Sempre pinta o último snapshot primeiro — a tela não fica em branco
-        paint()
-
-        if st.session_state.pop("skip_next_fragment_fetch", False):
-            return
-
-        if refresh_seconds <= 0:
-            return
-
-        # Atualiza em silêncio, mantendo os números antigos na tela
-        paint("sincronizando…")
-        try:
-            st.session_state.dashboard_data = fetch_dashboard_snapshot(
-                config.username,
-                config.password,
-                event_id,
-                config.partner_code,
-                force=True,
+        # Evita renderizar os mesmos elementos 2x no mesmo ciclo (DuplicateElementId)
+        if not skip_fetch and refresh_seconds > 0:
+            render_dashboard_content(
+                st.session_state.dashboard_data,
+                sync_status="sincronizando…",
             )
-            st.session_state.dashboard_error = None
-            paint()
-        except Exception:
-            paint("falha na sincronização · exibindo último snapshot")
+            try:
+                st.session_state.dashboard_data = fetch_dashboard_snapshot(
+                    config.username,
+                    config.password,
+                    event_id,
+                    config.partner_code,
+                    force=True,
+                )
+                st.session_state.dashboard_error = None
+            except Exception:
+                st.session_state.dashboard_error = "sync_failed"
+
+            st.session_state.skip_next_fragment_fetch = True
+            st.rerun(scope="fragment")
+            return
+
+        sync_status = ""
+        if st.session_state.get("dashboard_error") == "sync_failed":
+            sync_status = "falha na sincronização · exibindo último snapshot"
+
+        render_dashboard_content(
+            st.session_state.dashboard_data,
+            sync_status=sync_status,
+        )
 
     live_dashboard()
 
