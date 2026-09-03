@@ -1,7 +1,6 @@
 """Dashboard de vendas Zig/NetPDV."""
 from __future__ import annotations
 
-import os
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -9,7 +8,7 @@ import plotly.express as px
 import streamlit as st
 
 from metrics import compute_metrics
-from zig_client import ZigClient, ZigConfig
+from zig_session import get_config, get_zig_client
 
 st.set_page_config(
     page_title="Dashboard Vendas Grupo Impettus - RIR 2026",
@@ -117,27 +116,6 @@ CUSTOM_CSS = """
 """
 
 
-def get_config() -> ZigConfig:
-    try:
-        secrets = st.secrets
-        username = secrets["ZIG_USERNAME"]
-        password = secrets["ZIG_PASSWORD"]
-        event_id = int(secrets.get("ZIG_EVENT_ID", 38049))
-        partner_code = secrets.get("ZIG_PARTNER_CODE", "09C7DF1421")
-    except Exception:
-        username = os.getenv("ZIG_USERNAME", "")
-        password = os.getenv("ZIG_PASSWORD", "")
-        event_id = int(os.getenv("ZIG_EVENT_ID", "38049"))
-        partner_code = os.getenv("ZIG_PARTNER_CODE", "09C7DF1421")
-
-    return ZigConfig(
-        username=username,
-        password=password,
-        event_id=event_id,
-        partner_code=partner_code,
-    )
-
-
 def format_currency(value: float) -> str:
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
@@ -152,21 +130,6 @@ def metric_card(label: str, value: str) -> None:
         """,
         unsafe_allow_html=True,
     )
-
-
-@st.cache_resource(show_spinner=False)
-def get_zig_client(username: str, password: str, event_id: int, partner_code: str) -> ZigClient:
-    """Mantém a sessão autenticada entre atualizações (evita login a cada refresh)."""
-    client = ZigClient(
-        ZigConfig(
-            username=username,
-            password=password,
-            event_id=event_id,
-            partner_code=partner_code,
-        )
-    )
-    client.login()
-    return client
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -591,6 +554,7 @@ ZIG_PARTNER_CODE = "09C7DF1421"
             key="refresh_seconds",
         )
         refresh = st.button("🔄 Atualizar agora", use_container_width=True)
+        st.caption("Para DANFE / notas fiscais, abra a página **Notas Fiscais** no menu.")
 
     if not config.username or not config.password:
         st.stop()

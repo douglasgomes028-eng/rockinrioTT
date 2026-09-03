@@ -238,6 +238,125 @@ class ZigClient:
         except ValueError:
             return 0
 
+    def fetch_invoice_detail(self, nota_fiscal_id: int) -> dict[str, Any] | None:
+        response = self.session.post(
+            f"{BASE_URL}/backoffice/Gestao/GetNotaFiscalEmissao",
+            data={"NotaFiscal_ID": nota_fiscal_id},
+            timeout=30,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if not payload.get("success"):
+            return None
+        return payload.get("data")
+
+    def download_danfe(self, nota_fiscal_id: int) -> tuple[bytes, str]:
+        nota = self.fetch_invoice_detail(nota_fiscal_id)
+        if not nota or not nota.get("vchCaminhoDanfe"):
+            raise RuntimeError("DANFE não disponível para esta nota.")
+        file_response = requests.get(nota["vchCaminhoDanfe"], timeout=45)
+        file_response.raise_for_status()
+        numero = nota.get("Numero") or nota_fiscal_id
+        filename = f"DANFE_{numero}.pdf"
+        return file_response.content, filename
+
+    def download_xml(self, nota_fiscal_id: int) -> tuple[bytes, str]:
+        nota = self.fetch_invoice_detail(nota_fiscal_id)
+        if not nota or not nota.get("vchCaminhoXml"):
+            raise RuntimeError("XML não disponível para esta nota.")
+        file_response = requests.get(nota["vchCaminhoXml"], timeout=45)
+        file_response.raise_for_status()
+        numero = nota.get("Numero") or nota_fiscal_id
+        filename = f"NFe_{numero}.xml"
+        return file_response.content, filename
+
+    def search_invoices(
+        self,
+        query: str = "",
+        period_start: str | None = None,
+        period_end: str | None = None,
+        max_pages: int = 8,
+    ) -> tuple[list[dict[str, Any]], int]:
+        if not period_start or not period_end:
+            period_start, period_end = self.get_event_period()
+
+        payload = {
+            "intCodigoCliente": str(self.config.event_id),
+            "vchPeriodo": f"{period_start} - {period_end}",
+            "tnyStatusNF": "2",
+        }
+        digits = re.sub(r"\D", "", query or "")
+        if len(digits) >= 14:
+            payload["vchSerialTerminal"] = digits
+        elif 8 <= len(digits) <= 12:
+            payload["Transacao_ID"] = digits
+        elif 1 <= len(digits) <= 7:
+            payload["intCodigoControle"] = digits
+
+        self.session.post(
+            f"{BASE_URL}/backoffice/Gestao/AjaxPartialLoader",
+            data={"filter": "GestaoNotaFiscalFilter", "content": "GestaoNotaFiscalGrid"},
+            timeout=30,
+        )
+        grid = self.session.post(
+            f"{BASE_URL}/backoffice/Gestao/GestaoNotaFiscalGrid",
+            data=payload,
+            timeout=90,
+        )
+        grid.raise_for_status()
+
+        invoices: list[dict[str, Any]] = []
+        total = 0
+        for index in range(max_pages):
+            page = self.session.post(
+                f"{BASE_URL}/backoffice/Gestao/GetNotasFiscaisPagina",
+                data={"index": index},
+                timeout=60,
+            )
+            page.raise_for_status()
+            body = page.json()
+            total = int(body.get("totalItems") or 0)
+            batch = body.get("data") or []
+            if not batch:
+                break
+            invoices.extend(self._normalize_invoice(item) for item in batch)
+            if len(batch) < int(body.get("itemsPerPage") or 150):
+                break
+
+        if query:
+            needle = query.strip().lower()
+            digits = re.sub(r"\D", "", query)
+            filtered = []
+            for invoice in invoices:
+                blob = " ".join(str(value).lower() for value in invoice.values())
+                digit_blob = "".join(re.sub(r"\D", "", str(value)) for value in invoice.values())
+                if needle in blob or (digits and digits in digit_blob):
+                    filtered.append(invoice)
+            if filtered:
+                invoices = filtered
+
+        return invoices, total
+
+    @staticmethod
+    def _normalize_invoice(item: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "nota_id": item.get("NotaFiscal_ID"),
+            "transacao_id": item.get("Transacao_ID"),
+            "data_transacao": item.get("_DataHoraTransacao", ""),
+            "data_processamento": item.get("_DataHoraProcessamento", ""),
+            "codigo_ponto": item.get("CodigoPonto", ""),
+            "nome_ponto": item.get("NomePonto", ""),
+            "operacao": item.get("Operacao", ""),
+            "controle": item.get("intCodigoControle", ""),
+            "terminal": item.get("vchSerialTerminal", ""),
+            "serie": item.get("Serie", ""),
+            "numero": item.get("Numero", ""),
+            "valor": item.get("numValorTotal", 0),
+            "status": item.get("Status", ""),
+            "danfe_url": item.get("vchCaminhoDanfe") or "",
+            "xml_url": item.get("vchCaminhoXml") or "",
+        }
+
     def get_event_name(self) -> str:
         for event in self.get_events():
             if event.get("id") == self.config.event_id:
