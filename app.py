@@ -139,6 +139,7 @@ def render_charts(transactions: list[dict]) -> None:
                 .head(10)
             )
             if not by_point.empty:
+                by_point["valor_formatado"] = by_point["valor"].map(format_currency)
                 fig = px.bar(
                     by_point,
                     x="nome_ponto",
@@ -147,8 +148,20 @@ def render_charts(transactions: list[dict]) -> None:
                     labels={"nome_ponto": "Ponto", "valor": "Valor (R$)"},
                     color="valor",
                     color_continuous_scale="Blues",
+                    text="valor_formatado",
                 )
-                fig.update_layout(showlegend=False, height=380)
+                fig.update_traces(
+                    textposition="outside",
+                    textfont=dict(size=12, color="#f8fafc"),
+                    cliponaxis=False,
+                )
+                fig.update_layout(
+                    showlegend=False,
+                    height=420,
+                    margin=dict(t=80, b=80),
+                    yaxis=dict(rangemode="tozero"),
+                )
+                fig.update_yaxes(tickprefix="R$ ")
                 st.plotly_chart(fig, use_container_width=True)
 
     with col2:
