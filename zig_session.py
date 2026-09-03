@@ -29,8 +29,17 @@ def get_config() -> ZigConfig:
     )
 
 
+CLIENT_CACHE_VERSION = "notas-v2-terminal-zip"
+
+
 @st.cache_resource(show_spinner=False)
-def get_zig_client(username: str, password: str, event_id: int, partner_code: str) -> ZigClient:
+def get_zig_client(
+    username: str,
+    password: str,
+    event_id: int,
+    partner_code: str,
+    _version: str = CLIENT_CACHE_VERSION,
+) -> ZigClient:
     client = ZigClient(
         ZigConfig(
             username=username,
@@ -41,3 +50,7 @@ def get_zig_client(username: str, password: str, event_id: int, partner_code: st
     )
     client.login()
     return client
+
+
+def clear_zig_client_cache() -> None:
+    get_zig_client.clear()

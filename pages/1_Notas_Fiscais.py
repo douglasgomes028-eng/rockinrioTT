@@ -6,7 +6,7 @@ from datetime import date, datetime, time
 import pandas as pd
 import streamlit as st
 
-from zig_session import get_config, get_zig_client
+from zig_session import clear_zig_client_cache, get_config, get_zig_client
 
 
 def _parse_event_date(value: str) -> date:
@@ -72,6 +72,15 @@ try:
         event_id,
         config.partner_code,
     )
+    # Sessão antiga em cache pode não ter o filtro de terminal; força reload.
+    if "terminal" not in period_client.search_invoices.__code__.co_varnames:
+        clear_zig_client_cache()
+        period_client = get_zig_client(
+            config.username,
+            config.password,
+            event_id,
+            config.partner_code,
+        )
     period_client.config.event_id = event_id
     event_start_str, event_end_str = period_client.get_event_period()
 except Exception as exc:
