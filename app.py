@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 import plotly.express as px
@@ -154,6 +154,21 @@ def metric_card(label: str, value: str) -> None:
     )
 
 
+@st.cache_resource(show_spinner=False)
+def get_zig_client(username: str, password: str, event_id: int, partner_code: str) -> ZigClient:
+    """Mantém a sessão autenticada entre atualizações (evita login a cada refresh)."""
+    client = ZigClient(
+        ZigConfig(
+            username=username,
+            password=password,
+            event_id=event_id,
+            partner_code=partner_code,
+        )
+    )
+    client.login()
+    return client
+
+
 @st.cache_data(ttl=60, show_spinner=False)
 def load_dashboard_data(
     username: str,
@@ -161,20 +176,27 @@ def load_dashboard_data(
     event_id: int,
     partner_code: str,
 ) -> dict:
-    config = ZigConfig(
-        username=username,
-        password=password,
-        event_id=event_id,
-        partner_code=partner_code,
-    )
-    client = ZigClient(config)
-    client.login()
+    client = get_zig_client(username, password, event_id, partner_code)
+    # Garante o evento atual caso o ID mude na sidebar
+    client.config.event_id = event_id
 
-    period_start, period_end = client.get_event_period()
-    event_name = client.get_event_name()
-    transactions = client.fetch_transactions(period_start, period_end)
-    pending_prints = client.fetch_pending_prints()
-    indicators = client.fetch_dashboard_indicators(period_start, period_end)
+    try:
+        period_start, period_end = client.get_event_period()
+        event_name = client.get_event_name()
+        transactions = client.fetch_transactions(period_start, period_end)
+        pending_prints = client.fetch_pending_prints()
+        indicators = client.fetch_dashboard_indicators(period_start, period_end)
+    except Exception:
+        # Sessão pode ter expirado — reloga uma vez e tenta de novo
+        get_zig_client.clear()
+        client = get_zig_client(username, password, event_id, partner_code)
+        client.config.event_id = event_id
+        period_start, period_end = client.get_event_period()
+        event_name = client.get_event_name()
+        transactions = client.fetch_transactions(period_start, period_end)
+        pending_prints = client.fetch_pending_prints()
+        indicators = client.fetch_dashboard_indicators(period_start, period_end)
+
     metrics = compute_metrics(transactions, pending_prints, indicators)
 
     return {
@@ -370,66 +392,53 @@ def render_top_products_by_point(transactions: list[dict]) -> None:
     st.caption("Ranking em tempo real com base na quantidade vendida em cada PDV.")
 
     pontos = list(products_by_point.keys())
-    selected = st.selectbox("Selecione o ponto de venda", options=pontos, index=0)
-    selected_df = products_by_point[selected].sort_values("quantidade", ascending=True)
-
-    fig = px.bar(
-        selected_df,
-        x="quantidade",
-        y="label",
-        orientation="h",
-        text="quantidade",
-        color="quantidade",
-        color_continuous_scale="Teal",
-        custom_data=["produto", "valor_formatado", "vendas", "categoria"],
-        labels={"quantidade": "Quantidade vendida", "label": "Produto"},
-    )
-    fig.update_traces(
-        textposition="outside",
-        textfont=dict(size=13, color="#f8fafc"),
-        cliponaxis=False,
-        hovertemplate=(
-            "<b>%{customdata[0]}</b><br>"
-            "Quantidade: %{x}<br>"
-            "Faturamento: %{customdata[1]}<br>"
-            "Vendas: %{customdata[2]}<br>"
-            "Categoria: %{customdata[3]}<extra></extra>"
-        ),
-    )
-    fig.update_layout(
-        height=max(320, 58 * len(selected_df) + 110),
-        showlegend=False,
-        margin=dict(l=20, r=80, t=20, b=40),
-        coloraxis_showscale=False,
-        xaxis=dict(rangemode="tozero", title="Quantidade"),
-        yaxis=dict(title=""),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#e2e8f0"),
-    )
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
-    st.markdown("##### Visão geral por ponto")
     cols = st.columns(2)
+
     for idx, ponto in enumerate(pontos):
         top = products_by_point[ponto]
+        chart_df = top.sort_values("quantidade", ascending=True)
+
         with cols[idx % 2]:
-            lines = []
-            for _, row in top.iterrows():
-                lines.append(
-                    f"#{int(row['posicao'])} <strong>{row['produto']}</strong> — "
-                    f"{int(row['quantidade'])} un · {row['valor_formatado']}"
-                )
-            st.markdown(
-                f"""
-                <div class="ranking-card" style="display:block;">
-                    <div class="ranking-name">{ponto}</div>
-                    <div class="ranking-meta" style="margin-top:0.6rem; line-height:1.7;">
-                        {"<br>".join(lines)}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+            st.markdown(f"**{ponto}**")
+            fig = px.bar(
+                chart_df,
+                x="quantidade",
+                y="label",
+                orientation="h",
+                text="quantidade",
+                color="quantidade",
+                color_continuous_scale="Teal",
+                custom_data=["produto", "valor_formatado", "vendas", "categoria"],
+                labels={"quantidade": "Quantidade", "label": "Produto"},
+            )
+            fig.update_traces(
+                textposition="outside",
+                textfont=dict(size=12, color="#f8fafc"),
+                cliponaxis=False,
+                hovertemplate=(
+                    "<b>%{customdata[0]}</b><br>"
+                    "Quantidade: %{x}<br>"
+                    "Faturamento: %{customdata[1]}<br>"
+                    "Vendas: %{customdata[2]}<br>"
+                    "Categoria: %{customdata[3]}<extra></extra>"
+                ),
+            )
+            fig.update_layout(
+                height=max(280, 48 * len(chart_df) + 90),
+                showlegend=False,
+                margin=dict(l=10, r=60, t=10, b=30),
+                coloraxis_showscale=False,
+                xaxis=dict(rangemode="tozero", title="Quantidade"),
+                yaxis=dict(title=""),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#e2e8f0", size=12),
+            )
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                config={"displayModeBar": False},
+                key=f"top_products_chart_{idx}_{ponto}",
             )
 
 
@@ -457,63 +466,21 @@ def render_charts(transactions: list[dict]) -> None:
         st.plotly_chart(fig, use_container_width=True)
 
 
-def main() -> None:
-    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
-
-    config = get_config()
-
-    with st.sidebar:
-        st.title("⚙️ Configurações")
-        st.caption("Credenciais via Streamlit Secrets ou variáveis de ambiente.")
-
-        if not config.username or not config.password:
-            st.warning("Configure ZIG_USERNAME e ZIG_PASSWORD nos secrets.")
-            st.code(
-                """[secrets]
-ZIG_USERNAME = "seu.usuario"
-ZIG_PASSWORD = "sua_senha"
-ZIG_EVENT_ID = "38049"
-ZIG_PARTNER_CODE = "09C7DF1421"
-""",
-                language="toml",
-            )
-
-        event_id = st.number_input("ID do Evento", value=config.event_id, step=1)
-        refresh_seconds = st.selectbox(
-            "Atualização automática",
-            options=[0, 30, 60, 120],
-            format_func=lambda s: "Desligada" if s == 0 else f"A cada {s}s",
-            index=2,
-        )
-        refresh = st.button("🔄 Atualizar agora", use_container_width=True)
-
-    if not config.username or not config.password:
-        st.stop()
-
-    if refresh:
-        load_dashboard_data.clear()
-
-    try:
-        with st.spinner("Carregando dados do retaguarda Zig..."):
-            data = load_dashboard_data(
-                config.username,
-                config.password,
-                int(event_id),
-                config.partner_code,
-            )
-    except Exception as exc:
-        st.error(f"Erro ao carregar dados: {exc}")
-        st.stop()
-
+def render_dashboard_content(data: dict, sync_status: str = "") -> None:
     metrics = data["metrics"]
 
-    st.markdown('<div class="header-title">📊 Dashboard Vendas Grupo Impettus - RIR 2026</div>', unsafe_allow_html=True)
     st.markdown(
-        f'<div class="header-subtitle">{data["event_name"]} · '
-        f'Período: {data["period_start"]} até {data["period_end"]} · '
-        f'Atualizado: {data["updated_at"]}</div>',
+        '<div class="header-title">📊 Dashboard Vendas Grupo Impettus - RIR 2026</div>',
         unsafe_allow_html=True,
     )
+    subtitle = (
+        f'{data["event_name"]} · '
+        f'Período: {data["period_start"]} até {data["period_end"]} · '
+        f'Atualizado: {data["updated_at"]}'
+    )
+    if sync_status:
+        subtitle += f" · {sync_status}"
+    st.markdown(f'<div class="header-subtitle">{subtitle}</div>', unsafe_allow_html=True)
 
     c1, c2, c3, c4 = st.columns(4)
     c5, c6, c7 = st.columns(3)
@@ -555,6 +522,7 @@ ZIG_PARTNER_CODE = "09C7DF1421"
                     "data_realizacao",
                     "operacao",
                     "nome_ponto",
+                    "produto",
                     "quantidade",
                     "valor",
                     "status",
@@ -566,12 +534,110 @@ ZIG_PARTNER_CODE = "09C7DF1421"
         else:
             st.info("Nenhuma transação encontrada no período.")
 
-    if refresh_seconds > 0:
-        import time
 
-        time.sleep(refresh_seconds)
+def fetch_dashboard_snapshot(
+    username: str,
+    password: str,
+    event_id: int,
+    partner_code: str,
+    force: bool = False,
+) -> dict:
+    if force:
         load_dashboard_data.clear()
-        st.rerun()
+    return load_dashboard_data(username, password, event_id, partner_code)
+
+
+def main() -> None:
+    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+
+    config = get_config()
+
+    with st.sidebar:
+        st.title("⚙️ Configurações")
+        st.caption("Credenciais via Streamlit Secrets ou variáveis de ambiente.")
+
+        if not config.username or not config.password:
+            st.warning("Configure ZIG_USERNAME e ZIG_PASSWORD nos secrets.")
+            st.code(
+                """[secrets]
+ZIG_USERNAME = "seu.usuario"
+ZIG_PASSWORD = "sua_senha"
+ZIG_EVENT_ID = "38049"
+ZIG_PARTNER_CODE = "09C7DF1421"
+""",
+                language="toml",
+            )
+
+        event_id = int(st.number_input("ID do Evento", value=config.event_id, step=1))
+        refresh_seconds = st.selectbox(
+            "Atualização automática",
+            options=[0, 30, 60, 120],
+            format_func=lambda s: "Desligada" if s == 0 else f"A cada {s}s",
+            index=2,
+            key="refresh_seconds",
+        )
+        refresh = st.button("🔄 Atualizar agora", use_container_width=True)
+
+    if not config.username or not config.password:
+        st.stop()
+
+    # Carga inicial (ou manual): única vez que mostra o loading completo
+    if "dashboard_data" not in st.session_state or refresh:
+        try:
+            with st.spinner("Carregando dados do retaguarda Zig..."):
+                st.session_state.dashboard_data = fetch_dashboard_snapshot(
+                    config.username,
+                    config.password,
+                    event_id,
+                    config.partner_code,
+                    force=True,
+                )
+            st.session_state.dashboard_error = None
+            st.session_state.skip_next_fragment_fetch = True
+        except Exception as exc:
+            if "dashboard_data" not in st.session_state:
+                st.error(f"Erro ao carregar dados: {exc}")
+                st.stop()
+            st.session_state.dashboard_error = str(exc)
+
+    run_every = timedelta(seconds=refresh_seconds) if refresh_seconds > 0 else None
+
+    @st.fragment(run_every=run_every)
+    def live_dashboard() -> None:
+        slot = st.empty()
+
+        def paint(sync_status: str = "") -> None:
+            with slot.container():
+                render_dashboard_content(
+                    st.session_state.dashboard_data,
+                    sync_status=sync_status,
+                )
+
+        # Sempre pinta o último snapshot primeiro — a tela não fica em branco
+        paint()
+
+        if st.session_state.pop("skip_next_fragment_fetch", False):
+            return
+
+        if refresh_seconds <= 0:
+            return
+
+        # Atualiza em silêncio, mantendo os números antigos na tela
+        paint("sincronizando…")
+        try:
+            st.session_state.dashboard_data = fetch_dashboard_snapshot(
+                config.username,
+                config.password,
+                event_id,
+                config.partner_code,
+                force=True,
+            )
+            st.session_state.dashboard_error = None
+            paint()
+        except Exception:
+            paint("falha na sincronização · exibindo último snapshot")
+
+    live_dashboard()
 
 
 if __name__ == "__main__":
