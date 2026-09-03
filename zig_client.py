@@ -275,6 +275,7 @@ class ZigClient:
         query: str = "",
         period_start: str | None = None,
         period_end: str | None = None,
+        terminal: str = "",
         max_pages: int = 8,
     ) -> tuple[list[dict[str, Any]], int]:
         if not period_start or not period_end:
@@ -285,13 +286,17 @@ class ZigClient:
             "vchPeriodo": f"{period_start} - {period_end}",
             "tnyStatusNF": "2",
         }
-        digits = re.sub(r"\D", "", query or "")
-        if len(digits) >= 14:
-            payload["vchSerialTerminal"] = digits
-        elif 8 <= len(digits) <= 12:
-            payload["Transacao_ID"] = digits
-        elif 1 <= len(digits) <= 7:
-            payload["intCodigoControle"] = digits
+        terminal_digits = re.sub(r"\D", "", terminal or "")
+        query_digits = re.sub(r"\D", "", query or "")
+        if terminal_digits:
+            payload["vchSerialTerminal"] = terminal_digits
+        elif len(query_digits) >= 14:
+            payload["vchSerialTerminal"] = query_digits
+            terminal_digits = query_digits
+        elif 8 <= len(query_digits) <= 12:
+            payload["Transacao_ID"] = query_digits
+        elif 1 <= len(query_digits) <= 7:
+            payload["intCodigoControle"] = query_digits
 
         self.session.post(
             f"{BASE_URL}/backoffice/Gestao/AjaxPartialLoader",
@@ -334,6 +339,13 @@ class ZigClient:
                     filtered.append(invoice)
             if filtered:
                 invoices = filtered
+
+        if terminal_digits:
+            invoices = [
+                invoice
+                for invoice in invoices
+                if terminal_digits in re.sub(r"\D", "", str(invoice.get("terminal") or ""))
+            ]
 
         return invoices, total
 

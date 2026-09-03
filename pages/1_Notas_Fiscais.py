@@ -1,7 +1,7 @@
 """Página isolada de notas fiscais (DANFE) para atendimento."""
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 import pandas as pd
 import streamlit as st
@@ -29,6 +29,10 @@ def _period_bounds(value: date | tuple[date, ...] | list[date]) -> tuple[date, d
     return today, today
 
 
+def _format_hm(value: time) -> str:
+    return value.strftime("%H:%M")
+
+
 st.set_page_config(
     page_title="Notas Fiscais · Grupo Impettus",
     page_icon="🧾",
@@ -53,11 +57,11 @@ with st.sidebar:
     st.markdown(
         """
         **Campos do comprovante para busca**
+        - **Data + horário** da venda
         - **Serial do terminal** (15 dígitos)
         - **Código de controle**
         - **ID da transação Zig**
         - **ID da nota** ou **número da NF**
-        - **Data da venda** no período abaixo
         """
     )
 
@@ -78,24 +82,51 @@ event_start = _parse_event_date(event_start_str)
 event_end = _parse_event_date(event_end_str)
 today = min(max(date.today(), event_start), event_end)
 
-query = st.text_input(
-    "Busca rápida pelo comprovante",
-    placeholder="Ex.: 869122080155908  ·  Controle 34  ·  Transação 220046404",
-)
+st.subheader("Filtros do comprovante")
 periodo = st.date_input(
-    "Período da transação",
+    "Data da transação",
     value=(today, today),
     min_value=event_start,
     max_value=event_end,
     format="DD/MM/YYYY",
-    help="Filtra as notas pela data da venda, no mesmo formato da gestão de notas da Zig.",
+    help="Use a data impressa no comprovante.",
 )
 start_day, end_day = _period_bounds(periodo)
 if start_day > end_day:
     start_day, end_day = end_day, start_day
 
-period_start = f"{start_day.strftime('%d/%m/%Y')} 00:00"
-period_end = f"{end_day.strftime('%d/%m/%Y')} 23:59"
+hora_col_a, hora_col_b = st.columns(2)
+with hora_col_a:
+    hora_inicio = st.time_input(
+        "Horário inicial",
+        value=time(0, 0),
+        step=60,
+        help="Horário da venda no comprovante (início do intervalo).",
+    )
+with hora_col_b:
+    hora_fim = st.time_input(
+        "Horário final",
+        value=time(23, 59),
+        step=60,
+        help="Se souber o horário exato, estreite o intervalo (ex.: 12:55 a 13:00).",
+    )
+
+if (start_day, hora_inicio) > (end_day, hora_fim):
+    st.warning("O horário inicial está depois do horário final. Ajuste o intervalo.")
+
+terminal = st.text_input(
+    "Serial do terminal",
+    placeholder="Ex.: 869122080155908",
+    help="Campo Terminal ID do comprovante. Acelera bastante a busca quando combinado com data/hora.",
+)
+query = st.text_input(
+    "Busca adicional (opcional)",
+    placeholder="Controle, transação Zig, ID ou número da NF",
+    help="Use se quiser refinar ainda mais. O terminal tem campo próprio acima.",
+)
+
+period_start = f"{start_day.strftime('%d/%m/%Y')} {_format_hm(hora_inicio)}"
+period_end = f"{end_day.strftime('%d/%m/%Y')} {_format_hm(hora_fim)}"
 st.caption(f"Consultando de {period_start} até {period_end}.")
 
 col_a, col_b = st.columns(2)
@@ -122,10 +153,14 @@ if buscar or listar:
                 query=query.strip() if buscar else "",
                 period_start=period_start,
                 period_end=period_end,
+                terminal=terminal.strip(),
             )
         st.session_state.invoice_rows = rows
         st.session_state.invoice_total = total
-        st.session_state.invoice_period = f"{period_start} — {period_end}"
+        label_bits = [f"{period_start} — {period_end}"]
+        if terminal.strip():
+            label_bits.append(f"terminal {terminal.strip()}")
+        st.session_state.invoice_period = " · ".join(label_bits)
     except Exception as exc:
         st.error(f"Não foi possível carregar as notas: {exc}")
         st.stop()
@@ -135,7 +170,8 @@ total = st.session_state.invoice_total
 
 if not rows:
     st.info(
-        "Informe um ID do comprovante e clique em Buscar, ou liste as notas do período selecionado."
+        "Informe data/hora (e, se possível, o serial do terminal) e clique em Buscar, "
+        "ou liste as notas do período selecionado."
     )
     st.stop()
 
