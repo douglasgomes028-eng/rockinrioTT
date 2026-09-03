@@ -33,7 +33,7 @@ def _format_hm(value: time) -> str:
     return value.strftime("%H:%M")
 
 
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_terminal_serials(
     username: str,
     password: str,
@@ -49,6 +49,10 @@ def load_terminal_serials(
         client = get_zig_client(username, password, event_id, partner_code)
         client.config.event_id = event_id
     return client.list_invoice_terminals(period_start, period_end)
+
+
+def _terminal_label(serial: str) -> str:
+    return f"terminal: {serial}"
 
 
 st.set_page_config(
@@ -146,32 +150,36 @@ period_end = f"{end_day.strftime('%d/%m/%Y')} {_format_hm(hora_fim)}"
 st.caption(f"Consultando de {period_start} até {period_end}.")
 
 try:
-    with st.spinner("Carregando seriais de terminais do período..."):
+    with st.spinner("Carregando todos os terminais do evento..."):
         terminal_options = load_terminal_serials(
             config.username,
             config.password,
             event_id,
             config.partner_code,
-            period_start,
-            period_end,
+            event_start_str,
+            event_end_str,
         )
 except Exception as exc:
     st.warning(f"Não foi possível montar a lista de terminais: {exc}")
     terminal_options = []
 
-terminal_labels = ["Todos"] + terminal_options
-selected_terminal = st.selectbox(
-    "Serial do terminal",
-    options=terminal_labels,
-    index=0,
-    help="Lista dos terminais com nota no período selecionado. Escolha o serial do comprovante.",
-)
-if not terminal_options:
-    st.caption("Nenhum serial encontrado neste período. Ajuste data/hora ou liste as notas sem filtro de terminal.")
+if terminal_options:
+    selected_terminal = st.selectbox(
+        "Serial do terminal",
+        options=terminal_options,
+        format_func=_terminal_label,
+        index=None,
+        placeholder="Selecione o terminal",
+        help="Todos os terminais com nota fiscal neste evento. Escolha o serial do comprovante.",
+    )
+    st.caption(f"{len(terminal_options)} terminais disponíveis no evento.")
+    terminal = selected_terminal or ""
 else:
-    st.caption(f"{len(terminal_options)} serial(is) disponível(is) no período.")
-
-terminal = "" if selected_terminal == "Todos" else selected_terminal
+    st.warning(
+        "Nenhum terminal encontrado no evento. Você ainda pode listar notas só com data/hora "
+        "ou informar a busca adicional."
+    )
+    terminal = ""
 
 query = st.text_input(
     "Busca adicional (opcional)",
@@ -203,13 +211,13 @@ if buscar or listar:
                 query=query.strip() if buscar else "",
                 period_start=period_start,
                 period_end=period_end,
-                terminal=terminal.strip(),
+                terminal=terminal,
             )
         st.session_state.invoice_rows = rows
         st.session_state.invoice_total = total
         label_bits = [f"{period_start} — {period_end}"]
-        if terminal.strip():
-            label_bits.append(f"terminal {terminal.strip()}")
+        if terminal:
+            label_bits.append(f"terminal {terminal}")
         st.session_state.invoice_period = " · ".join(label_bits)
         st.session_state.pop("danfe_zip_bytes", None)
         st.session_state.pop("danfe_zip_name", None)
