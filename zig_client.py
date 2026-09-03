@@ -108,7 +108,12 @@ class ZigClient:
             period_start, period_end = self.get_event_period()
 
         fields = self._default_fields(period_start, period_end)
-        fields.append("field-formatacao=0")
+        fields.extend(
+            [
+                "field-formatacao=1",
+                "field-tipo-relatorio-transacao=1",
+            ]
+        )
         self._process_report("lista_transacao", fields)
         return self._fetch_transactions_paginated()
 
@@ -157,13 +162,17 @@ class ZigClient:
             "nome_ponto": item.get("vchNomePonto", ""),
             "operador": item.get("Operador", ""),
             "forma_pagamento": item.get("FormaPagamento", ""),
-            "produto": item.get("Produto", ""),
-            "categoria": item.get("CategoriaProduto", ""),
+            "produto": str(item.get("Produto") or "").strip(),
+            "categoria": str(item.get("CategoriaProduto") or "").strip(),
             "quantidade": self._parse_int(item.get("Qtd", 0)),
             "valor": self._parse_money(valor),
-            "gorjeta": self._parse_money(item.get("numValorGorjetaPosPago", 0)),
+            "gorjeta": self._parse_money(
+                item.get("numValorGorjetaPosPago", item.get("numValorGorjeta", 0))
+            ),
             "bonus": self._parse_money(item.get("Bonus", 0)),
-            "taxa_ativacao": self._parse_money(item.get("TxAtivação", 0)),
+            "taxa_ativacao": self._parse_money(
+                item.get("TxAtivação", item.get("TxAtivacao", 0))
+            ),
             "status": item.get("Status", ""),
         }
 

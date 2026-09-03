@@ -298,12 +298,149 @@ def render_brand_ranking(transactions: list[dict]) -> None:
             )
 
 
+def build_top_products_by_point(
+    transactions: list[dict],
+    top_n: int = 5,
+) -> dict[str, pd.DataFrame]:
+    if not transactions:
+        return {}
+
+    df = pd.DataFrame(transactions)
+    required = {"nome_ponto", "produto", "quantidade", "valor"}
+    if not required.issubset(df.columns):
+        return {}
+
+    df = df.copy()
+    df["produto"] = df["produto"].fillna("").astype(str).str.strip()
+    df["nome_ponto"] = df["nome_ponto"].fillna("").astype(str).str.strip()
+    df = df[(df["produto"] != "") & (df["nome_ponto"] != "")]
+
+    status = df.get("status", pd.Series([""] * len(df))).astype(str).str.lower()
+    operacao = df.get("operacao", pd.Series([""] * len(df))).astype(str).str.lower()
+    cancel_mask = status.str.contains("cancel|estorn|devol", regex=True) | operacao.str.contains(
+        "cancel|estorn|devol",
+        regex=True,
+    )
+    df = df[~cancel_mask]
+    if df.empty:
+        return {}
+
+    result: dict[str, pd.DataFrame] = {}
+    pontos = (
+        df.groupby("nome_ponto", as_index=False)["valor"]
+        .sum()
+        .sort_values("valor", ascending=False)["nome_ponto"]
+        .tolist()
+    )
+
+    for ponto in pontos:
+        ponto_df = df[df["nome_ponto"] == ponto]
+        top = (
+            ponto_df.groupby("produto", as_index=False)
+            .agg(
+                quantidade=("quantidade", "sum"),
+                valor=("valor", "sum"),
+                vendas=("produto", "count"),
+                categoria=("categoria", "first"),
+            )
+            .sort_values(["quantidade", "valor"], ascending=False)
+            .head(top_n)
+            .reset_index(drop=True)
+        )
+        if top.empty:
+            continue
+        top["posicao"] = top.index + 1
+        top["valor_formatado"] = top["valor"].map(format_currency)
+        top["label"] = top.apply(
+            lambda row: f"#{int(row['posicao'])} {row['produto']}",
+            axis=1,
+        )
+        result[ponto] = top
+
+    return result
+
+
+def render_top_products_by_point(transactions: list[dict]) -> None:
+    products_by_point = build_top_products_by_point(transactions, top_n=5)
+    if not products_by_point:
+        st.info("Sem dados de produtos por ponto de venda.")
+        return
+
+    st.subheader("🍔 Top 5 produtos mais vendidos por ponto")
+    st.caption("Ranking em tempo real com base na quantidade vendida em cada PDV.")
+
+    pontos = list(products_by_point.keys())
+    selected = st.selectbox("Selecione o ponto de venda", options=pontos, index=0)
+    selected_df = products_by_point[selected].sort_values("quantidade", ascending=True)
+
+    fig = px.bar(
+        selected_df,
+        x="quantidade",
+        y="label",
+        orientation="h",
+        text="quantidade",
+        color="quantidade",
+        color_continuous_scale="Teal",
+        custom_data=["produto", "valor_formatado", "vendas", "categoria"],
+        labels={"quantidade": "Quantidade vendida", "label": "Produto"},
+    )
+    fig.update_traces(
+        textposition="outside",
+        textfont=dict(size=13, color="#f8fafc"),
+        cliponaxis=False,
+        hovertemplate=(
+            "<b>%{customdata[0]}</b><br>"
+            "Quantidade: %{x}<br>"
+            "Faturamento: %{customdata[1]}<br>"
+            "Vendas: %{customdata[2]}<br>"
+            "Categoria: %{customdata[3]}<extra></extra>"
+        ),
+    )
+    fig.update_layout(
+        height=max(320, 58 * len(selected_df) + 110),
+        showlegend=False,
+        margin=dict(l=20, r=80, t=20, b=40),
+        coloraxis_showscale=False,
+        xaxis=dict(rangemode="tozero", title="Quantidade"),
+        yaxis=dict(title=""),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#e2e8f0"),
+    )
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+    st.markdown("##### Visão geral por ponto")
+    cols = st.columns(2)
+    for idx, ponto in enumerate(pontos):
+        top = products_by_point[ponto]
+        with cols[idx % 2]:
+            lines = []
+            for _, row in top.iterrows():
+                lines.append(
+                    f"#{int(row['posicao'])} <strong>{row['produto']}</strong> — "
+                    f"{int(row['quantidade'])} un · {row['valor_formatado']}"
+                )
+            st.markdown(
+                f"""
+                <div class="ranking-card" style="display:block;">
+                    <div class="ranking-name">{ponto}</div>
+                    <div class="ranking-meta" style="margin-top:0.6rem; line-height:1.7;">
+                        {"<br>".join(lines)}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
 def render_charts(transactions: list[dict]) -> None:
     if not transactions:
         st.info("Sem transações para exibir nos gráficos.")
         return
 
     render_brand_ranking(transactions)
+    st.divider()
+    render_top_products_by_point(transactions)
 
     df = pd.DataFrame(transactions)
     if "operacao" in df.columns:
