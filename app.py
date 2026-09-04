@@ -17,49 +17,154 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-CUSTOM_CSS = """
+THEME_CSS = {
+    "escuro": """
 <style>
-    .metric-card {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        border-radius: 12px;
-        padding: 1.2rem 1.4rem;
-        border: 1px solid rgba(255,255,255,0.08);
-        min-height: 120px;
+    :root {
+        --rir-bg: #0b0f14;
+        --rir-card: #151b24;
+        --rir-sidebar: #10151d;
+        --rir-ink: #f8fafc;
+        --rir-muted: #8b949e;
+        --rir-border: rgba(148,163,184,0.14);
+        --rir-blue: #0095ff;
+        --rir-blue-soft: rgba(0,149,255,0.16);
+        --rir-top: #0a0c10;
+        --rir-hint: #6b7280;
+        --rir-bar-track: rgba(148,163,184,0.16);
+        --rir-shadow: 0 1px 2px rgba(0,0,0,0.25), 0 10px 28px rgba(0,0,0,0.22);
+        --rir-rank-default: #7dd3fc;
+        --rir-hover: rgba(0,149,255,0.45);
     }
-    .metric-label {
-        color: #94a3b8;
-        font-size: 0.85rem;
-        margin-bottom: 0.3rem;
+</style>
+""",
+    "claro": """
+<style>
+    :root {
+        --rir-bg: #f3f4f6;
+        --rir-card: #ffffff;
+        --rir-sidebar: #ffffff;
+        --rir-ink: #111827;
+        --rir-muted: #6b7280;
+        --rir-border: #e5e7eb;
+        --rir-blue: #0095ff;
+        --rir-blue-soft: #dbe8ff;
+        --rir-top: #1a1a1a;
+        --rir-hint: #9ca3af;
+        --rir-bar-track: #eef2ff;
+        --rir-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 8px 24px rgba(16,24,40,0.06);
+        --rir-rank-default: #1d4ed8;
+        --rir-hover: #bfdbfe;
     }
-    .metric-value {
-        color: #f8fafc;
-        font-size: 1.8rem;
-        font-weight: 700;
-        line-height: 1.2;
+</style>
+""",
+}
+
+BASE_CSS = """
+<style>
+    .stApp { background: var(--rir-bg); color: var(--rir-ink); }
+    [data-testid="stHeader"] { background: var(--rir-top); }
+    section[data-testid="stSidebar"] {
+        background: var(--rir-sidebar);
+        border-right: 1px solid var(--rir-border);
     }
+    section[data-testid="stSidebar"] .stButton > button {
+        border-radius: 10px;
+        font-weight: 600;
+    }
+    .block-container { padding-top: 1.35rem; padding-bottom: 2rem; }
+
+    .theme-toggle {
+        display: flex;
+        gap: 0.4rem;
+        margin: 0.35rem 0 0.9rem;
+    }
+
+    .topbar-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        background: color-mix(in srgb, var(--rir-card) 88%, #000 12%);
+        color: var(--rir-ink);
+        border: 1px solid var(--rir-border);
+        border-radius: 999px;
+        padding: 0.35rem 0.8rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        margin-bottom: 0.9rem;
+    }
+    .topbar-badge span { color: #fbbf24; }
+
     .header-title {
-        font-size: 2rem;
-        font-weight: 700;
-        margin-bottom: 0.2rem;
+        font-size: 1.85rem;
+        font-weight: 760;
+        color: var(--rir-ink);
+        margin-bottom: 0.15rem;
+        letter-spacing: -0.02em;
     }
     .header-subtitle {
-        color: #64748b;
-        margin-bottom: 1.5rem;
+        color: var(--rir-muted);
+        margin-bottom: 1.35rem;
+        font-size: 0.92rem;
     }
-    .ranking-card {
-        background: linear-gradient(135deg, #111827 0%, #1e293b 100%);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 16px;
-        padding: 1rem 1.2rem;
+
+    .metric-card {
+        background: var(--rir-card);
+        border-radius: 14px;
+        padding: 1.05rem 1.15rem 1.1rem;
+        border: 1px solid var(--rir-border);
+        box-shadow: var(--rir-shadow);
+        min-height: 112px;
+    }
+    .metric-label {
+        color: var(--rir-muted);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-bottom: 0.45rem;
+    }
+    .metric-value {
+        color: var(--rir-ink);
+        font-size: 1.7rem;
+        font-weight: 760;
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+    }
+    .metric-hint {
+        color: var(--rir-hint);
+        font-size: 0.78rem;
+        margin-top: 0.45rem;
+    }
+
+    .panel-title {
+        color: var(--rir-ink);
+        font-size: 1.05rem;
+        font-weight: 720;
+        margin-bottom: 0.15rem;
+    }
+    .panel-caption {
+        color: var(--rir-muted);
+        font-size: 0.84rem;
         margin-bottom: 0.6rem;
+    }
+
+    .ranking-card {
+        background: var(--rir-card);
+        border: 1px solid var(--rir-border);
+        border-radius: 14px;
+        box-shadow: var(--rir-shadow);
+        padding: 0.95rem 1.05rem;
+        margin-bottom: 0.65rem;
         display: flex;
         align-items: center;
         gap: 1rem;
         transition: transform 0.15s ease, border-color 0.15s ease;
     }
     .ranking-card:hover {
-        transform: translateX(4px);
-        border-color: rgba(59,130,246,0.45);
+        transform: translateX(3px);
+        border-color: var(--rir-hover);
     }
     .ranking-pos {
         width: 42px;
@@ -74,62 +179,122 @@ CUSTOM_CSS = """
         color: #0f172a;
     }
     .ranking-pos.gold { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
-    .ranking-pos.silver { background: linear-gradient(135deg, #e2e8f0, #94a3b8); }
+    .ranking-pos.silver { background: linear-gradient(135deg, #e5e7eb, #9ca3af); }
     .ranking-pos.bronze { background: linear-gradient(135deg, #fdba74, #ea580c); }
-    .ranking-pos.default { background: #334155; color: #f8fafc; }
+    .ranking-pos.default { background: var(--rir-blue-soft); color: var(--rir-rank-default); }
     .ranking-info { flex: 1; min-width: 0; }
     .ranking-name {
-        color: #f8fafc;
-        font-weight: 700;
-        font-size: 1.05rem;
+        color: var(--rir-ink);
+        font-weight: 720;
+        font-size: 1.02rem;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    .ranking-meta { color: #94a3b8; font-size: 0.82rem; margin-top: 0.15rem; }
+    .ranking-meta { color: var(--rir-muted); font-size: 0.82rem; margin-top: 0.15rem; }
     .ranking-bar-wrap {
         margin-top: 0.45rem;
-        background: rgba(148,163,184,0.18);
+        background: var(--rir-bar-track);
         border-radius: 999px;
-        height: 10px;
+        height: 8px;
         overflow: hidden;
     }
     .ranking-bar {
         height: 100%;
         border-radius: 999px;
-        background: linear-gradient(90deg, #60a5fa, #2563eb);
+        background: linear-gradient(90deg, #38bdf8, #0095ff);
     }
     .ranking-value {
-        color: #f8fafc;
-        font-weight: 800;
-        font-size: 1.15rem;
+        color: var(--rir-ink);
+        font-weight: 780;
+        font-size: 1.08rem;
         white-space: nowrap;
         text-align: right;
-        min-width: 130px;
+        min-width: 120px;
     }
-    .ranking-share {
-        color: #94a3b8;
-        font-size: 0.8rem;
-        text-align: right;
+    .ranking-share { color: var(--rir-muted); font-size: 0.78rem; text-align: right; }
+
+    div[data-testid="stExpander"] {
+        background: var(--rir-card);
+        border: 1px solid var(--rir-border);
+        border-radius: 14px;
+        box-shadow: var(--rir-shadow);
     }
 </style>
 """
+
+
+def get_ui_theme() -> str:
+    theme = st.session_state.get("ui_theme", "escuro")
+    return theme if theme in ("claro", "escuro") else "escuro"
+
+
+def apply_theme(theme: str | None = None) -> str:
+    current = theme or get_ui_theme()
+    st.session_state.ui_theme = current
+    st.markdown(THEME_CSS[current], unsafe_allow_html=True)
+    st.markdown(BASE_CSS, unsafe_allow_html=True)
+    return current
+
+
+def render_theme_toggle() -> str:
+    current = get_ui_theme()
+    st.caption("TEMA")
+    selected = st.radio(
+        "Tema",
+        options=["Claro", "Escuro"],
+        index=0 if current == "claro" else 1,
+        horizontal=True,
+        label_visibility="collapsed",
+        key="ui_theme_radio",
+    )
+    theme = "claro" if selected == "Claro" else "escuro"
+    st.session_state.ui_theme = theme
+    return theme
 
 
 def format_currency(value: float) -> str:
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def metric_card(label: str, value: str) -> None:
+def metric_card(label: str, value: str, hint: str = "backup Zig · ao vivo") -> None:
     st.markdown(
         f"""
         <div class="metric-card">
             <div class="metric-label">{label}</div>
             <div class="metric-value">{value}</div>
+            <div class="metric-hint">{hint}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+def get_chart_layout(theme: str | None = None) -> dict:
+    current = theme or get_ui_theme()
+    font_color = "#374151" if current == "claro" else "#cbd5e1"
+    return {
+        "paper_bgcolor": "rgba(0,0,0,0)",
+        "plot_bgcolor": "rgba(0,0,0,0)",
+        "font": dict(color=font_color, family="sans-serif", size=12),
+    }
+
+
+def get_chart_palette(theme: str | None = None) -> dict:
+    current = theme or get_ui_theme()
+    if current == "claro":
+        return {
+            "bar_brand": ["#dbe8ff", "#0095ff"],
+            "bar_products": ["#cffafe", "#0d9488"],
+            "text": "#1f2937",
+            "grid": "#e5e7eb",
+        }
+    return {
+        "bar_brand": ["#0b3a66", "#0095ff"],
+        "bar_products": ["#134e4a", "#14b8a6"],
+        "text": "#e2e8f0",
+        "grid": "rgba(148,163,184,0.18)",
+    }
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -212,13 +377,17 @@ def render_brand_ranking(transactions: list[dict]) -> None:
         st.info("Sem dados para o ranking de faturamento por marca.")
         return
 
-    st.subheader("🏆 Ranking em tempo real · Faturamento por marca")
-    st.caption("Atualiza automaticamente conforme as vendas entram no retaguarda Zig.")
+    st.markdown('<div class="panel-title">🏆 Ranking em tempo real · Faturamento por marca</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="panel-caption">Atualiza automaticamente conforme as vendas entram no retaguarda Zig.</div>',
+        unsafe_allow_html=True,
+    )
 
     chart_tab, cards_tab = st.tabs(["Gráfico interativo", "Lista de ranking"])
 
     with chart_tab:
         chart_df = ranking.sort_values("valor", ascending=True)
+        palette = get_chart_palette()
         fig = px.bar(
             chart_df,
             x="valor",
@@ -226,13 +395,13 @@ def render_brand_ranking(transactions: list[dict]) -> None:
             orientation="h",
             text="valor_formatado",
             color="valor",
-            color_continuous_scale="Blues",
+            color_continuous_scale=palette["bar_brand"],
             custom_data=["posicao", "vendas", "itens", "share"],
             labels={"valor": "Faturamento (R$)", "label": "Marca / Ponto"},
         )
         fig.update_traces(
             textposition="outside",
-            textfont=dict(size=13, color="#f8fafc"),
+            textfont=dict(size=13, color=palette["text"]),
             cliponaxis=False,
             hovertemplate=(
                 "<b>%{y}</b><br>"
@@ -248,11 +417,9 @@ def render_brand_ranking(transactions: list[dict]) -> None:
             showlegend=False,
             margin=dict(l=20, r=120, t=30, b=40),
             coloraxis_showscale=False,
-            xaxis=dict(tickprefix="R$ ", rangemode="tozero"),
+            xaxis=dict(tickprefix="R$ ", rangemode="tozero", gridcolor=palette["grid"]),
             yaxis=dict(title=""),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#e2e8f0"),
+            **get_chart_layout(),
         )
         st.plotly_chart(
             fig,
@@ -356,8 +523,11 @@ def render_top_products_by_point(transactions: list[dict]) -> None:
         st.info("Sem dados de produtos por ponto de venda.")
         return
 
-    st.subheader("🍔 Top 5 produtos mais vendidos por ponto")
-    st.caption("Ranking em tempo real com base na quantidade vendida em cada PDV.")
+    st.markdown('<div class="panel-title">🍔 Top 5 produtos mais vendidos por ponto</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="panel-caption">Ranking em tempo real com base na quantidade vendida em cada PDV.</div>',
+        unsafe_allow_html=True,
+    )
 
     pontos = list(products_by_point.keys())
     cols = st.columns(2)
@@ -368,6 +538,7 @@ def render_top_products_by_point(transactions: list[dict]) -> None:
 
         with cols[idx % 2]:
             st.markdown(f"**{ponto}**")
+            palette = get_chart_palette()
             fig = px.bar(
                 chart_df,
                 x="quantidade",
@@ -375,13 +546,13 @@ def render_top_products_by_point(transactions: list[dict]) -> None:
                 orientation="h",
                 text="quantidade",
                 color="quantidade",
-                color_continuous_scale="Teal",
+                color_continuous_scale=palette["bar_products"],
                 custom_data=["produto", "valor_formatado", "vendas", "categoria"],
                 labels={"quantidade": "Quantidade", "label": "Produto"},
             )
             fig.update_traces(
                 textposition="outside",
-                textfont=dict(size=12, color="#f8fafc"),
+                textfont=dict(size=12, color=palette["text"]),
                 cliponaxis=False,
                 hovertemplate=(
                     "<b>%{customdata[0]}</b><br>"
@@ -396,11 +567,9 @@ def render_top_products_by_point(transactions: list[dict]) -> None:
                 showlegend=False,
                 margin=dict(l=10, r=60, t=10, b=30),
                 coloraxis_showscale=False,
-                xaxis=dict(rangemode="tozero", title="Quantidade"),
+                xaxis=dict(rangemode="tozero", title="Quantidade", gridcolor=palette["grid"]),
                 yaxis=dict(title=""),
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e2e8f0", size=12),
+                **get_chart_layout(),
             )
             st.plotly_chart(
                 fig,
@@ -416,7 +585,6 @@ def render_charts(transactions: list[dict]) -> None:
         return
 
     render_brand_ranking(transactions)
-    st.divider()
     render_top_products_by_point(transactions)
 
     df = pd.DataFrame(transactions)
@@ -429,8 +597,9 @@ def render_charts(transactions: list[dict]) -> None:
             values="quantidade",
             title="Distribuição por operação",
             hole=0.45,
+            color_discrete_sequence=["#0095ff", "#14b8a6", "#f59e0b", "#ef4444", "#8b5cf6", "#64748b"],
         )
-        fig.update_layout(height=380)
+        fig.update_layout(height=380, **get_chart_layout())
         st.plotly_chart(
             fig,
             use_container_width=True,
@@ -443,13 +612,17 @@ def render_dashboard_content(data: dict, sync_status: str = "") -> None:
     metrics = data["metrics"]
 
     st.markdown(
-        '<div class="header-title">📊 Dashboard Vendas Grupo Impettus - RIR 2026</div>',
+        '<div class="topbar-badge"><span>⚡</span> Análise de Vendas · backup Zig</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="header-title">RIR 2026 — Vendas ao vivo</div>',
         unsafe_allow_html=True,
     )
     subtitle = (
         f'{data["event_name"]} · '
         f'Período: {data["period_start"]} até {data["period_end"]} · '
-        f'Atualizado: {data["updated_at"]}'
+        f'atualizado {data["updated_at"]}'
     )
     if sync_status:
         subtitle += f" · {sync_status}"
@@ -459,9 +632,9 @@ def render_dashboard_content(data: dict, sync_status: str = "") -> None:
     c5, c6, c7 = st.columns(3)
 
     with c1:
-        metric_card("Receita Bruta", format_currency(metrics["receita_bruta"]))
+        metric_card("Faturamento", format_currency(metrics["receita_bruta"]))
     with c2:
-        metric_card("Quantidade de Vendas", f'{metrics["quantidade_vendas"]:,}'.replace(",", "."))
+        metric_card("Transações", f'{metrics["quantidade_vendas"]:,}'.replace(",", "."))
     with c3:
         metric_card("Ticket Médio", format_currency(metrics["ticket_medio"]))
     with c4:
@@ -482,7 +655,7 @@ def render_dashboard_content(data: dict, sync_status: str = "") -> None:
             str(metrics["quantidade_dispositivos_vendendo"]),
         )
 
-    st.divider()
+    st.write("")
     render_charts(data["transactions"])
 
     with st.expander("Ver transações recentes"):
@@ -525,13 +698,13 @@ def fetch_dashboard_snapshot(
 
 
 def main() -> None:
-    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
-
     config = get_config()
 
     with st.sidebar:
-        st.title("⚙️ Configurações")
-        st.caption("Credenciais via Streamlit Secrets ou variáveis de ambiente.")
+        st.markdown("### Controles")
+        st.caption("Dashboard backup · mesma fonte Zig do painel principal.")
+        theme = render_theme_toggle()
+        apply_theme(theme)
 
         if not config.username or not config.password:
             st.warning("Configure ZIG_USERNAME e ZIG_PASSWORD nos secrets.")
@@ -553,10 +726,11 @@ ZIG_PARTNER_CODE = "09C7DF1421"
             index=2,
             key="refresh_seconds",
         )
-        refresh = st.button("🔄 Atualizar agora", use_container_width=True)
+        refresh = st.button("Atualizar agora", type="primary", use_container_width=True)
         st.divider()
-        if st.button("🧾 Notas fiscais (DANFE)", use_container_width=True):
+        if st.button("Notas fiscais (DANFE)", use_container_width=True):
             st.switch_page("pages/1_Notas_Fiscais.py")
+        st.caption("status · backup Zig")
 
     if not config.username or not config.password:
         st.stop()
