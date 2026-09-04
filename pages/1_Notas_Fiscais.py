@@ -62,11 +62,6 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("🧾 Notas fiscais (DANFE)")
-st.caption(
-    "Página para relacionamento: busque a venda pelos dados do comprovante e baixe a DANFE."
-)
-
 config = get_config()
 if not config.username or not config.password:
     st.warning("Configure as credenciais Zig nos secrets do Streamlit.")
@@ -75,6 +70,16 @@ if not config.username or not config.password:
 with st.sidebar:
     if st.button("📊 Voltar ao dashboard", use_container_width=True):
         st.switch_page("app.py")
+    st.caption("TEMA")
+    _selected = st.radio(
+        "Tema notas",
+        options=["Claro", "Escuro"],
+        index=0 if st.session_state.get("ui_theme", "escuro") == "claro" else 1,
+        horizontal=True,
+        label_visibility="collapsed",
+        key="ui_theme_radio_notas",
+    )
+    st.session_state.ui_theme = "claro" if _selected == "Claro" else "escuro"
     st.subheader("Filtros")
     event_id = int(st.number_input("ID do Evento", value=config.event_id, step=1))
     st.markdown(
@@ -87,6 +92,45 @@ with st.sidebar:
         - **ID da nota** ou **número da NF**
         """
     )
+
+_theme = st.session_state.get("ui_theme", "escuro")
+if _theme == "claro":
+    _vars = """
+        --rir-bg: #f3f4f6; --rir-card: #ffffff; --rir-sidebar: #ffffff;
+        --rir-border: #e5e7eb; --rir-top: #1a1a1a;
+    """
+else:
+    _vars = """
+        --rir-bg: #0b0f14; --rir-card: #151b24; --rir-sidebar: #10151d;
+        --rir-border: rgba(148,163,184,0.14); --rir-top: #0a0c10;
+    """
+
+st.markdown(
+    f"""
+    <style>
+        :root {{ {_vars} }}
+        .stApp {{ background: var(--rir-bg); }}
+        [data-testid="stHeader"] {{ background: var(--rir-top); }}
+        section[data-testid="stSidebar"] {{
+            background: var(--rir-sidebar);
+            border-right: 1px solid var(--rir-border);
+        }}
+        div[data-testid="stVerticalBlockBorderWrapper"] {{
+            background: var(--rir-card);
+            border: 1px solid var(--rir-border) !important;
+            border-radius: 14px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.18), 0 10px 28px rgba(0,0,0,0.12);
+        }}
+        .block-container {{ padding-top: 1.35rem; }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown("### Notas fiscais (DANFE)")
+st.caption(
+    "Backup Zig · busque a venda pelos dados do comprovante e baixe a DANFE."
+)
 
 try:
     period_client = get_zig_client(
